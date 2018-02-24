@@ -1,21 +1,32 @@
 cmake_minimum_required(VERSION 2.6)
 project(cflie)
 
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
-
+## Version
 set(${PROJECT_NAME}_VERSION_MAJOR_0)
 set(${PROJECT_NAME}_VERSION_MINOR_1)
 
-include_directories("${PROJECT_SOURCE_DIR}/include")
-
-link_directories("/usr/lib/x86_64-linux-gnu/")
-
-find_library(GLFW_LIB glfw)
-if(${GLFW_LIB} STREQUAL "GLFW_LIB-NOTFOUND")
-  message(STATUS "The GLFW libs appear to not be installed.")
-  message(FATAL_ERROR "On Ubuntu, do: sudo apt-get install libglfw-dev libglfw2")
+## Set compiler to use c++ 11 features
+include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-std=c++14" COMPILER_SUPPORTS_CXX14)
+CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
+if(COMPILER_SUPPORTS_CXX14)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+elseif(COMPILER_SUPPORTS_CXX11)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+elseif(COMPILER_SUPPORTS_CXX0X)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+else()
+	message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++14 or C++11 support. Please use a different C++ compiler.")
 endif()
+
+## Put all binary files into /bin and libraries into /lib
+set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
+set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib)
+set(ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+#include_directories("${PROJECT_SOURCE_DIR}/include")
+#link_directories("/usr/lib/x86_64-linux-gnu/")
 
 find_library(USB_LIB usb-1.0)
 if(${USB_LIB} STREQUAL "USB_LIB-NOTFOUND")
@@ -23,43 +34,34 @@ if(${USB_LIB} STREQUAL "USB_LIB-NOTFOUND")
   message(FATAL_ERROR "On Ubuntu, do: sudo apt-get install libusb-1.0-0 libusb-1.0-0-dev")
 endif()
 
-
 ### Libraries ###
-
-add_library(${PROJECT_NAME}
-  src/cflie/CCrazyRadio.cpp
-  src/cflie/CCrazyflie.cpp
-  src/cflie/CCRTPPacket.cpp
-  src/cflie/CTOC.cpp)
-
-
-### Executables ###
-
-add_executable(ex-replugging src/examples/replugging.cpp)
-add_executable(ex-simple src/examples/simple.cpp)
-add_executable(ex-gui src/examples/gui.cpp)
-
-
-### Linking ###
-
-target_link_libraries(${PROJECT_NAME} ${USB_LIB})
-target_link_libraries(ex-replugging ${PROJECT_NAME})
-target_link_libraries(ex-simple ${PROJECT_NAME})
-target_link_libraries(ex-gui ${PROJECT_NAME} ${GLFW_LIB} GL GLU)
-
 # ARM needs librt linked in
 if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "arm")
-  target_link_libraries(${PROJECT_NAME} rt)
-  target_link_libraries(ex-replugging rt)
-  target_link_libraries(ex-simple rt)
-  target_link_libraries(ex-gui rt)
+  set(DEP_LIBS rt ${USB_LIB})
+else()
+  set(DEP_LIBS ${USB_LIB})
 endif()
 
+# Add Cflie library
+set(CFLIE_LIB_SRC
+  src/CCrazyRadio.cpp
+  src/CCrazyflie.cpp
+  src/CCRTPPacket.cpp
+  src/CTOC.cpp
+)
+add_library(${PROJECT_NAME}  STATIC ${CFLIE_LIB_SRC})
+target_link_libraries(${PROJECT_NAME} ${DEP_LIBS})
+target_include_directories(${PROJECT_NAME}  PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  PRIVATE src)
+
+### Examples ###
+add_subdirectory(examples)
 
 ### Install ###
 
-install(
-  DIRECTORY include/cflie
+install(DIRECTORY include/cflie
   DESTINATION include
   FILES_MATCHING
   PATTERN "*.h"

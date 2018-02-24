@@ -33,7 +33,7 @@
 #include <iostream>
 #include <GL/gl.h>
 #include <GL/glu.h>
-#include <GL/glfw.h>
+#include <GLFW/glfw3.h>
 
 // libcflie
 #include <cflie/CCrazyflie.h>
